@@ -107,6 +107,18 @@
   };
 
   // intercept before file loses File identity - covers presigned-URL pattern (file read to ArrayBuffer, sent via XHR to S3)
+  // also covers new Response(file).arrayBuffer() which bypasses Blob.prototype overrides
+  const _NativeResponse = Response;
+  window.Response = function Response(body, init) {
+    if (body instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
+      showNotification();
+      throw new DOMException('Blocked by policy', 'AbortError');
+    }
+    return Reflect.construct(_NativeResponse, [body, init], new.target || _NativeResponse);
+  };
+  window.Response.prototype = _NativeResponse.prototype;
+  Object.setPrototypeOf(window.Response, _NativeResponse);
+
   const _blobArrayBuffer = NativeBlob.prototype.arrayBuffer;
   NativeBlob.prototype.arrayBuffer = function () {
     if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
