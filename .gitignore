@@ -2,3 +2,4 @@ _metadata/
 *.crx
 *.pem
 CLAUDE.md
+test-console.js

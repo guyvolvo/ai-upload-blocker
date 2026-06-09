@@ -7,6 +7,11 @@
   if (window.__aiUploadBlocker) return;
   window.__aiUploadBlocker = true;
 
+  // capture native constructors before any page script can replace them
+  const NativeFile      = File;
+  const NativeBlob      = Blob;
+  const NativeFormData  = FormData;
+
   const POLICY_MSG = 'File uploads to AI services are blocked by company policy.';
   const BANNER_ID  = '__ai-upload-block-banner';
 
@@ -63,7 +68,7 @@
   function formDataHasFiles(fd) {
     try {
       for (const val of fd.values()) {
-        if (val instanceof File) return true;
+        if (val instanceof NativeFile) return true;
       }
     } catch (_) {}
     return false;
@@ -71,16 +76,14 @@
 
   function bodyHasFiles(body) {
     if (!body) return false;
-    if (body instanceof File) return true;
-    if (body instanceof Blob) {
-      // Plain Blob (not File): check MIME type to avoid false positives.
-      // text/plain and application/json are telemetry/API payloads (e.g. Datadog RUM sends Blob bodies).
-      // Binary and media types are file uploads.
+    if (body instanceof NativeFile) return true;
+    if (body instanceof NativeBlob) {
+      // text/plain and application/json are telemetry payloads (e.g. Datadog RUM), not file uploads
       const t = (body.type || '').toLowerCase().split(';')[0].trim();
       if (!t || t === 'text/plain' || t === 'application/json') return false;
       return true;
     }
-    if (body instanceof FormData) return formDataHasFiles(body);
+    if (body instanceof NativeFormData) return formDataHasFiles(body);
     return false;
   }
 
@@ -103,29 +106,28 @@
     return _xhrSend.apply(this, arguments);
   };
 
-  // block file reading before bytes are stripped of File identity
-  // covers presigned-URL patterns: site reads file -> ArrayBuffer -> XHR to S3, bypassing bodyHasFiles
-  const _blobArrayBuffer = Blob.prototype.arrayBuffer;
-  Blob.prototype.arrayBuffer = function () {
-    if (this instanceof File && Date.now() - lastPasteImageMs > 5000) {
+  // intercept before file loses File identity - covers presigned-URL pattern (file read to ArrayBuffer, sent via XHR to S3)
+  const _blobArrayBuffer = NativeBlob.prototype.arrayBuffer;
+  NativeBlob.prototype.arrayBuffer = function () {
+    if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
     return _blobArrayBuffer.call(this);
   };
 
-  const _blobText = Blob.prototype.text;
-  Blob.prototype.text = function () {
-    if (this instanceof File && Date.now() - lastPasteImageMs > 5000) {
+  const _blobText = NativeBlob.prototype.text;
+  NativeBlob.prototype.text = function () {
+    if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
     return _blobText.call(this);
   };
 
-  const _blobStream = Blob.prototype.stream;
-  Blob.prototype.stream = function () {
-    if (this instanceof File && Date.now() - lastPasteImageMs > 5000) {
+  const _blobStream = NativeBlob.prototype.stream;
+  NativeBlob.prototype.stream = function () {
+    if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
       showNotification();
       return new ReadableStream({ start(c) { c.error(new DOMException('Blocked by policy', 'AbortError')); } });
     }
@@ -135,7 +137,7 @@
   ['readAsArrayBuffer', 'readAsBinaryString', 'readAsDataURL', 'readAsText'].forEach(method => {
     const _orig = FileReader.prototype[method];
     FileReader.prototype[method] = function (blob) {
-      if (blob instanceof File && Date.now() - lastPasteImageMs > 5000) {
+      if (blob instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
         showNotification();
         const self = this;
         setTimeout(() => {
@@ -235,20 +237,37 @@
     });
   }, { once: true });
 
+  function hasFiles(dt) {
+    return dt && dt.types && dt.types.includes('Files');
+  }
+
+  // block dragenter so the site's drop-zone UI never appears
+  document.addEventListener('dragenter', function (e) {
+    if (hasFiles(e.dataTransfer)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
+  // dragover must be cancelled so the drop event fires
+  document.addEventListener('dragover', function (e) {
+    if (hasFiles(e.dataTransfer)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      e.dataTransfer.dropEffect = 'none';
+    }
+  }, true);
+
   document.addEventListener('drop', function (e) {
     const dt = e.dataTransfer;
     if (dt && dt.files && dt.files.length > 0) {
       e.preventDefault();
       e.stopImmediatePropagation();
       showNotification();
-    }
-  }, true);
-
-  // dragover must be cancelled so the drop event fires
-  document.addEventListener('dragover', function (e) {
-    if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'none';
+      // dispatch dragleave so any drop-zone UI the site already rendered gets dismissed
+      (e.target || document.body).dispatchEvent(
+        new DragEvent('dragleave', { bubbles: true, cancelable: true })
+      );
     }
   }, true);
 

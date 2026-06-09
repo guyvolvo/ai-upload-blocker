@@ -6,8 +6,7 @@ const api = typeof browser !== 'undefined' ? browser : chrome;
 let initPromise = null;
 
 function safeInit() {
-  // onInstalled and onStartup can fire concurrently on first launch after an update;
-  // coalesce into one run to avoid duplicate script ID registration errors
+  // onInstalled and onStartup fire concurrently after an update - coalesce to avoid duplicate script ID
   if (!initPromise) initPromise = init().finally(() => { initPromise = null; });
   return initPromise;
 }
