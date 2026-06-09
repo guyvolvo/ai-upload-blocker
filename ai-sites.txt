@@ -413,6 +413,7 @@
 *.dreampress.ai
 *.dreamstudio.ai
 *.dreamtavern.ai
+*.duck.ai
 *.dubbing-ai.com
 *.dubbingai.io
 *.dubverse.ai
@@ -678,6 +679,7 @@
 *.lolgames.net
 *.loudly.com
 *.loudme.ai
+*.lovable.dev
 *.lovo.ai
 *.lp.ai-copywriter.jp
 *.lp.comic-copilot.ai
@@ -698,6 +700,7 @@
 *.makeform.ai
 *.mammouth.ai
 *.manus.im
+*.mistral.ai
 *.mapify.so
 *.markcopy.ai
 *.marketingblocks.ai
@@ -752,6 +755,7 @@
 *.nextbrain.ai
 *.noluai.com
 *.notebooklm.cloud.google.com
+*.notebooklm.google.com
 *.notion.so
 *.novelai.net
 *.noxus.cc
