@@ -1,5 +1,6 @@
 _metadata/
 *.crx
+!dist/*.crx
 *.pem
 CLAUDE.md
 test-console.js
