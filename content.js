@@ -15,8 +15,6 @@
   const POLICY_MSG = 'File uploads to AI services are blocked by company policy.';
   const BANNER_ID  = '__ai-upload-block-banner';
 
-  let lastPasteImageMs = 0;
-
   function showNotification() {
     const show = () => {
       let banner = document.getElementById(BANNER_ID);
@@ -89,7 +87,7 @@
 
   const _fetch = window.fetch;
   window.fetch = function (input, init) {
-    if (init && bodyHasFiles(init.body) && Date.now() - lastPasteImageMs > 5000) {
+    if (init && bodyHasFiles(init.body)) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
@@ -98,7 +96,7 @@
 
   const _xhrSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (body) {
-    if (bodyHasFiles(body) && Date.now() - lastPasteImageMs > 5000) {
+    if (bodyHasFiles(body)) {
       showNotification();
       this.abort();
       return;
@@ -110,7 +108,7 @@
   // also covers new Response(file).arrayBuffer() which bypasses Blob.prototype overrides
   const _NativeResponse = Response;
   window.Response = function Response(body, init) {
-    if (body instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
+    if (body instanceof NativeFile) {
       showNotification();
       throw new DOMException('Blocked by policy', 'AbortError');
     }
@@ -121,7 +119,7 @@
 
   const _blobArrayBuffer = NativeBlob.prototype.arrayBuffer;
   NativeBlob.prototype.arrayBuffer = function () {
-    if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
+    if (this instanceof NativeFile) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
@@ -130,7 +128,7 @@
 
   const _blobText = NativeBlob.prototype.text;
   NativeBlob.prototype.text = function () {
-    if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
+    if (this instanceof NativeFile) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
@@ -139,7 +137,7 @@
 
   const _blobStream = NativeBlob.prototype.stream;
   NativeBlob.prototype.stream = function () {
-    if (this instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
+    if (this instanceof NativeFile) {
       showNotification();
       return new ReadableStream({ start(c) { c.error(new DOMException('Blocked by policy', 'AbortError')); } });
     }
@@ -149,7 +147,7 @@
   ['readAsArrayBuffer', 'readAsBinaryString', 'readAsDataURL', 'readAsText'].forEach(method => {
     const _orig = FileReader.prototype[method];
     FileReader.prototype[method] = function (blob) {
-      if (blob instanceof NativeFile && Date.now() - lastPasteImageMs > 5000) {
+      if (blob instanceof NativeFile) {
         showNotification();
         const self = this;
         setTimeout(() => {
@@ -286,15 +284,9 @@
   document.addEventListener('paste', function (e) {
     const cd = e.clipboardData;
     if (!cd || !cd.files || cd.files.length === 0) return;
-    for (const file of cd.files) {
-      if (!file.type.startsWith('image/')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        showNotification();
-        return;
-      }
-    }
-    lastPasteImageMs = Date.now();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    showNotification();
   }, true);
 
   document.addEventListener('submit', function (e) {
