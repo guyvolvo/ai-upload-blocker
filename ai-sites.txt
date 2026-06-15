@@ -70,6 +70,7 @@
 *.aiseo.ai
 *.aisozai.com
 *.aissistify.com
+*.aistudio.google.com
 *.aistudios.com
 *.aiswers.com
 *.aiter.io
@@ -1189,6 +1190,7 @@
 *.wrizzle.ai
 *.wui.ai
 *.www.getlid.co
+*.www.google.com
 *.xccelerateai.com
 *.xerac.ir
 *.xiaoin.com.cn

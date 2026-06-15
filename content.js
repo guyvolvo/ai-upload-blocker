@@ -15,6 +15,16 @@
   const POLICY_MSG = 'File uploads to AI services are blocked by company policy.';
   const BANNER_ID  = '__ai-upload-block-banner';
 
+  // for sites that share a domain with legitimate services, only block on specific URL conditions
+  const URL_CONDITIONS = {
+    'www.google.com': () => new URLSearchParams(window.location.search).get('udm') === '50',
+  };
+
+  function shouldBlock() {
+    const check = URL_CONDITIONS[window.location.hostname];
+    return check ? check() : true;
+  }
+
   function showNotification() {
     const show = () => {
       let banner = document.getElementById(BANNER_ID);
@@ -87,7 +97,7 @@
 
   const _fetch = window.fetch;
   window.fetch = function (input, init) {
-    if (init && bodyHasFiles(init.body)) {
+    if (init && bodyHasFiles(init.body) && shouldBlock()) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
@@ -96,7 +106,7 @@
 
   const _xhrSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (body) {
-    if (bodyHasFiles(body)) {
+    if (bodyHasFiles(body) && shouldBlock()) {
       showNotification();
       this.abort();
       return;
@@ -108,7 +118,7 @@
   // also covers new Response(file).arrayBuffer() which bypasses Blob.prototype overrides
   const _NativeResponse = Response;
   window.Response = function Response(body, init) {
-    if (body instanceof NativeFile) {
+    if (body instanceof NativeFile && shouldBlock()) {
       showNotification();
       throw new DOMException('Blocked by policy', 'AbortError');
     }
@@ -119,7 +129,7 @@
 
   const _blobArrayBuffer = NativeBlob.prototype.arrayBuffer;
   NativeBlob.prototype.arrayBuffer = function () {
-    if (this instanceof NativeFile) {
+    if (this instanceof NativeFile && shouldBlock()) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
@@ -128,7 +138,7 @@
 
   const _blobText = NativeBlob.prototype.text;
   NativeBlob.prototype.text = function () {
-    if (this instanceof NativeFile) {
+    if (this instanceof NativeFile && shouldBlock()) {
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     }
@@ -137,7 +147,7 @@
 
   const _blobStream = NativeBlob.prototype.stream;
   NativeBlob.prototype.stream = function () {
-    if (this instanceof NativeFile) {
+    if (this instanceof NativeFile && shouldBlock()) {
       showNotification();
       return new ReadableStream({ start(c) { c.error(new DOMException('Blocked by policy', 'AbortError')); } });
     }
@@ -147,7 +157,7 @@
   ['readAsArrayBuffer', 'readAsBinaryString', 'readAsDataURL', 'readAsText'].forEach(method => {
     const _orig = FileReader.prototype[method];
     FileReader.prototype[method] = function (blob) {
-      if (blob instanceof NativeFile) {
+      if (blob instanceof NativeFile && shouldBlock()) {
         showNotification();
         const self = this;
         setTimeout(() => {
@@ -161,6 +171,7 @@
   });
 
   function lockFileInput(el) {
+    if (!shouldBlock()) return;
     el.disabled = true;
     el.style.pointerEvents = 'none';
     el.setAttribute('data-ai-blocked', '1');
@@ -170,7 +181,7 @@
   // catch programmatic .click() on file inputs (e.g. off-DOM inputs never seen by MutationObserver)
   const _inputClick = HTMLInputElement.prototype.click;
   HTMLInputElement.prototype.click = function () {
-    if (this.type === 'file') {
+    if (this.type === 'file' && shouldBlock()) {
       showNotification();
       return;
     }
@@ -180,7 +191,7 @@
   if ('showPicker' in HTMLInputElement.prototype) {
     const _showPicker = HTMLInputElement.prototype.showPicker;
     HTMLInputElement.prototype.showPicker = function () {
-      if (this.type === 'file') { showNotification(); return; }
+      if (this.type === 'file' && shouldBlock()) { showNotification(); return; }
       return _showPicker.call(this);
     };
   }
@@ -204,7 +215,9 @@
   };
 
   if ('showOpenFilePicker' in window) {
+    const _origShowOpenFilePicker = window.showOpenFilePicker;
     window.showOpenFilePicker = function () {
+      if (!shouldBlock()) return _origShowOpenFilePicker.apply(this, arguments);
       showNotification();
       return Promise.reject(new DOMException('Blocked by policy', 'AbortError'));
     };
@@ -253,7 +266,7 @@
 
   // block dragenter so the site's drop-zone UI never appears
   document.addEventListener('dragenter', function (e) {
-    if (hasFiles(e.dataTransfer)) {
+    if (hasFiles(e.dataTransfer) && shouldBlock()) {
       e.preventDefault();
       e.stopImmediatePropagation();
     }
@@ -261,7 +274,7 @@
 
   // dragover must be cancelled so the drop event fires
   document.addEventListener('dragover', function (e) {
-    if (hasFiles(e.dataTransfer)) {
+    if (hasFiles(e.dataTransfer) && shouldBlock()) {
       e.preventDefault();
       e.stopImmediatePropagation();
       e.dataTransfer.dropEffect = 'none';
@@ -270,7 +283,7 @@
 
   document.addEventListener('drop', function (e) {
     const dt = e.dataTransfer;
-    if (dt && dt.files && dt.files.length > 0) {
+    if (dt && dt.files && dt.files.length > 0 && shouldBlock()) {
       e.preventDefault();
       e.stopImmediatePropagation();
       showNotification();
@@ -283,7 +296,7 @@
 
   document.addEventListener('paste', function (e) {
     const cd = e.clipboardData;
-    if (!cd || !cd.files || cd.files.length === 0) return;
+    if (!cd || !cd.files || cd.files.length === 0 || !shouldBlock()) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     showNotification();
@@ -291,7 +304,7 @@
 
   document.addEventListener('submit', function (e) {
     const form = e.target;
-    if (!form || typeof form.querySelectorAll !== 'function') return;
+    if (!form || typeof form.querySelectorAll !== 'function' || !shouldBlock()) return;
     for (const fi of form.querySelectorAll('input[type="file"]')) {
       if (fi.files && fi.files.length > 0) {
         e.preventDefault();
