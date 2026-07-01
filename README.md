@@ -54,6 +54,23 @@ ai-upload-blocker/
 +-- icons/
 ```
 
+## Personalization
+
+Customizing to your organizational needs:
+
+1. Fork the repository
+2. Edit `ai-sites.json` to match the AI services you want to block
+3. Pack the extension in Chrome (`chrome://extensions` -> Pack extension) -- this generates a new `.pem` key and a new extension ID unique to your build
+4. Replace `docs/ai-upload-blocker.crx` and `docs/update.xml` with your build
+5. Enable GitHub Pages on your fork (Settings -> Pages -> Branch: master, Folder: /docs)
+6. Point your Intune `ExtensionInstallForcelist` policy at your fork's update URL
+
+For domains that need URL-based gating (e.g. block only a specific path or query parameter, not the whole domain), add an entry to `URL_CONDITIONS` in `content.js`:
+
+```js
+'example.com': () => window.location.pathname.startsWith('/ai'),
+```
+
 ## Adding or Removing Domains
 
 Edit `ai-sites.json` only. Add the apex domain as a plain string:
@@ -78,14 +95,14 @@ ConvertTo-Json $d | Set-Content ai-sites.json -Encoding UTF8
 
 ## Deployment via Intune
 
+The extension is hosted on GitHub Pages. Intune pulls the CRX directly from there -- no internal server or manual distribution needed.
+
 ### Chrome and Edge
 
-1. Pack the extension using the same `.pem` key each time (Chrome -> chrome://extensions -> Pack extension)
-2. Replace `docs/ai-upload-blocker.crx` and update the version in `docs/update.xml`
-3. Push to GitHub -- GitHub Pages serves the files automatically
+Point Intune at the hosted update URL. Find the current appID at:
+`https://guyvolvo.github.io/ai-upload-blocker/update.xml`
 
 Intune Settings Catalog:
-Find the current appID at https://guyvolvo.github.io/ai-upload-blocker/update.xml '<app appid="ID">'
 - Chrome: `ExtensionInstallForcelist` -> `appID;https://guyvolvo.github.io/ai-upload-blocker/update.xml`
 - Edge: same value under Microsoft Edge `ExtensionInstallForcelist`
 
