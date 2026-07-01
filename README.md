@@ -93,7 +93,7 @@ To enforce minimum version via `ExtensionSettings`:
 
 ```json
 {
-  "logfipnicgdacimmohiojogcnidceodc": {
+  "appID": {
     "installation_mode": "force_installed",
     "update_url": "https://guyvolvo.github.io/ai-upload-blocker/update.xml",
     "minimum_version_required": "1.4.0"
